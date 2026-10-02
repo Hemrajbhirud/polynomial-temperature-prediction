@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polynomial Curve Fitting for Temperature Trend Prediction — Delhi Climate Study</title>
+  <meta name="description" content="An empirical study and interactive laboratory evaluating polynomial curve fitting, feature representation, Runge's phenomenon, and climate trend forecasting using Delhi Daily Climate data (2013-2017).">
+  <link rel="stylesheet" href="style.css">
+  <script src="chart.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Sticky Navigation -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <a href="#" class="nav-brand">
+        <div class="nav-logo-badge">P(x)</div>
+        <div>
+          <span class="nav-title">Delhi Climate • Polynomial Fitting</span>
+        </div>
+        <span class="nav-tag">ML Study</span>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#workbench" class="nav-link">Interactive Workbench</a></li>
+          <li><a href="#benchmarks" class="nav-link">Empirical Results</a></li>
+          <li><a href="#predictor" class="nav-link">Date Predictor</a></li>
+          <li><a href="#climatology" class="nav-link">EDA & Climatology</a></li>
+          <li><a href="#methodology" class="nav-link">Methodology</a></li>
+          <li>
+            <button class="nav-btn" onclick="copyProjectSummary()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
+              Copy Summary
+            </button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero & Executive Overview -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-meta">
+        <span class="badge badge-blue">Kaggle Daily Climate Dataset</span>
+        <span class="badge badge-emerald">Held-out Test R²: 0.794</span>
+        <span class="badge badge-amber">Annual Warming: +0.704 °C/yr</span>
+        <span class="badge badge-rose">Runge Phenomenon Analysis</span>
+      </div>
+
+      <h1 class="hero-title">Polynomial Curve Fitting for Temperature Trend Prediction</h1>
+      <p class="hero-subtitle">
+        An empirical investigation into modeling non-linear climate dynamics using polynomial regression. Demonstrating why naive time-indexing fails catastrophically via Runge's phenomenon, and how domain-informed day-of-year feature engineering enables an optimal degree-8 polynomial explaining ~80% of unseen seasonal variance.
+      </p>
+
+      <!-- Key Project Metric Counters -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-label">Training Period</span>
+          <span class="stat-value">1,461 Days</span>
+          <span class="stat-desc">4 full years (2013-01-01 to 2016-12-31)</span>
+        </div>
+
+        <div class="stat-card">
+          <span class="stat-label">Held-out Evaluation</span>
+          <span class="stat-value">114 Days</span>
+          <span class="stat-desc">Unseen test set (Jan 1 to Apr 24, 2017)</span>
+        </div>
+
+        <div class="stat-card">
+          <span class="stat-label">Optimal Model Fit</span>
+          <span class="stat-value">Degree 8</span>
+          <span class="stat-desc">Test RMSE: 2.87 °C | Test MAE: 2.26 °C</span>
+        </div>
+
+        <div class="stat-card">
+          <span class="stat-label">Long-Term Drift</span>
+          <span class="stat-value">+0.704 °C/yr</span>
+          <span class="stat-desc">Linear slope fit to aggregated annual means</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 1: INTERACTIVE MODEL WORKBENCH -->
+  <section class="section" id="workbench">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Interactive Laboratory</span>
+        <h2 class="section-title">Model Exploration Workbench</h2>
+        <p class="section-desc">
+          Test different input formulations and adjust the polynomial degree in real time to observe the bias-variance tradeoff, Runge's oscillation disaster on raw time, and the seasonal elbow curve.
+        </p>
+      </div>
+
+      <div class="workbench-grid">
+        <!-- Controls Sidebar -->
+        <aside class="control-panel">
+          <div>
+            <div class="control-group-title">1. Feature Formulation</div>
+            <div class="formulation-selector">
+              <label class="formulation-opt active" id="opt-seasonal" onclick="selectModelMode('seasonal')">
+                <input type="radio" name="formulation" checked>
+                <div class="formulation-text">
+                  <h4>Day of Year (Seasonal)</h4>
+                  <p>x = day ∈ [1, 366]. Unifies 4 years into single annual curve. Prevents Runge blowup.</p>
+                </div>
+              </label>
+
+              <label class="formulation-opt" id="opt-naive" onclick="selectModelMode('naive')">
+                <input type="radio" name="formulation">
+                <div class="formulation-text">
+                  <h4>Raw Time Index (Naive)</h4>
+                  <p>x = t ∈ [0, 1460]. Demonstrates boundary oscillations and numerical explosion at d ≥ 9.</p>
+                </div>
+              </label>
+
+              <label class="formulation-opt" id="opt-combined" onclick="selectModelMode('combined')">
+                <input type="radio" name="formulation">
+                <div class="formulation-text">
+                  <h4>Combined (Seasonal + Trend)</h4>
+                  <p>f_seasonal(doy) + (g_trend(yr) - ȳ). Full multi-year trajectory with warming drift.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Degree Slider -->
+          <div class="slider-box">
+            <div class="slider-top-row">
+              <span class="control-group-title" style="margin-bottom:0;">2. Polynomial Degree (d)</span>
+              <span class="degree-indicator" id="degree-badge">d = 8</span>
+            </div>
+            <input type="range" min="1" max="20" value="8" class="slider-input" id="degree-slider" oninput="onDegreeSliderInput(this.value)">
+
+            <div class="preset-buttons">
+              <button class="btn-preset" onclick="setDegreePreset(1)">d=1</button>
+              <button class="btn-preset" onclick="setDegreePreset(2)">d=2</button>
+              <button class="btn-preset" onclick="setDegreePreset(4)">d=4</button>
+              <button class="btn-preset active" onclick="setDegreePreset(8)">d=8 (Optimal)</button>
+              <button class="btn-preset" onclick="setDegreePreset(12)">d=12</button>
+              <button class="btn-preset" onclick="setDegreePreset(20)">d=20 (Runge)</button>
+            </div>
+          </div>
+
+          <!-- Layer Visibility Toggles -->
+          <div>
+            <div class="control-group-title">3. Visual Layers</div>
+            <div class="toggle-group">
+              <label class="toggle-label">
+                <input type="checkbox" id="layer-train" checked onchange="updateWorkbenchPlot()">
+                Training Observations (Scatter)
+              </label>
+              <label class="toggle-label">
+                <input type="checkbox" id="layer-test" checked onchange="updateWorkbenchPlot()">
+                2017 Held-out Test Data
+              </label>
+              <label class="toggle-label">
+                <input type="checkbox" id="layer-curve" checked onchange="updateWorkbenchPlot()">
+                Fitted Polynomial Curve
+              </label>
+              <label class="toggle-label">
+                <input type="checkbox" id="layer-conf" checked onchange="updateWorkbenchPlot()">
+                Residual Uncertainty Band (±1σ)
+              </label>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Workbench Display: Metrics + Live High-Res Plot -->
+        <div class="workbench-display">
+          
+          <!-- Live Metrics Strip -->
+          <div class="live-metrics-strip">
+            <div class="live-metric-card">
+              <div class="live-metric-header">
+                <span>Train RMSE</span>
+                <span class="badge badge-emerald" id="badge-train-status">Good</span>
+              </div>
+              <div class="live-metric-val" id="metric-train-rmse">2.13 °C</div>
+              <div class="live-metric-sub">In-sample residual error</div>
+            </div>
+
+            <div class="live-metric-card">
+              <div class="live-metric-header">
+                <span>Validation RMSE</span>
+                <span class="badge badge-emerald" id="badge-val-status">Stable</span>
+              </div>
+              <div class="live-metric-val" id="metric-val-rmse">3.10 °C</div>
+              <div class="live-metric-sub" id="metric-val-desc">Generalization on held-out year</div>
+            </div>
+
+            <div class="live-metric-card">
+              <div class="live-metric-header">
+                <span>Test RMSE (2017)</span>
+                <span class="badge badge-blue">Unseen</span>
+              </div>
+              <div class="live-metric-val" id="metric-test-rmse">2.87 °C</div>
+              <div class="live-metric-sub">Real held-out season error</div>
+            </div>
+
+            <div class="live-metric-card">
+              <div class="live-metric-header">
+                <span>Variance (R²)</span>
+                <span class="badge badge-blue">0.794</span>
+              </div>
+              <div class="live-metric-val" id="metric-r2">0.794</div>
+              <div class="live-metric-sub">~80% seasonal variance explained</div>
+            </div>
+          </div>
+
+          <!-- Chart Container -->
+          <div class="chart-container-card">
+            <div class="chart-meta-bar">
+              <span class="chart-title-tag" id="workbench-chart-title">Day of Year Model (Degree 8)</span>
+              <div class="chart-legend-row">
+                <div class="chart-legend-item"><span class="legend-swatch" style="background:#64748b;"></span> Historical Observations</div>
+                <div class="chart-legend-item"><span class="legend-swatch" style="background:#f43f5e;"></span> 2017 Test Observations</div>
+                <div class="chart-legend-item"><span class="legend-swatch" style="background:#3b82f6;"></span> Polynomial Fit Line</div>
+              </div>
+            </div>
+
+            <div class="canvas-wrapper">
+              <canvas id="workbenchCanvas"></canvas>
+            </div>
+
+            <!-- Mathematical Equation Readout -->
+            <div class="equation-bar">
+              <strong>Fitted Polynomial:</strong>
+              <span id="equation-display">ŷ(x) = -6.34e-17·x⁸ + 1.02e-13·x⁷ - 6.61e-11·x⁶ + 2.21e-8·x⁵ - 4.04e-6·x⁴ + 3.83e-4·x³ - 0.0166·x² + 0.395·x + 10.52</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2: EMPIRICAL BENCHMARKS & RUNGE'S PHENOMENON -->
+  <section class="section" id="benchmarks">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Experimental Rigor</span>
+        <h2 class="section-title">Model Comparison & Bias-Variance Analysis</h2>
+        <p class="section-desc">
+          Systematic evaluation comparing the Naive Raw Time formulation vs the Day-of-Year formulation across polynomial degrees 1 through 20. Note the dramatic Runge divergence on naive indexing.
+        </p>
+      </div>
+
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Degree (d)</th>
+              <th>Naive Train RMSE</th>
+              <th>Naive Val RMSE (t)</th>
+              <th>Seasonal Train RMSE</th>
+              <th>Seasonal Val RMSE (doy)</th>
+              <th>Seasonal Val R²</th>
+              <th>Analysis / Diagnosis</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-code">d = 1</td>
+              <td class="font-code">7.418 °C</td>
+              <td class="font-code">5.871 °C</td>
+              <td class="font-code">7.353 °C</td>
+              <td class="font-code">7.163 °C</td>
+              <td class="font-code">-0.084</td>
+              <td><span class="badge badge-amber">Severe Underfit</span> Linear cannot represent periodic wave</td>
+            </tr>
+            <tr>
+              <td class="font-code">d = 2</td>
+              <td class="font-code">7.402 °C</td>
+              <td class="font-code">6.576 °C</td>
+              <td class="font-code">2.454 °C</td>
+              <td class="font-code">3.400 °C</td>
+              <td class="font-code">0.756</td>
+              <td>Seasonal jumps to 75.6% variance explained immediately</td>
+            </tr>
+            <tr>
+              <td class="font-code">d = 3</td>
+              <td class="font-code">7.214 °C</td>
+              <td class="font-code">13.432 °C</td>
+              <td class="font-code">2.453 °C</td>
+              <td class="font-code">3.408 °C</td>
+              <td class="font-code">0.755</td>
+              <td>Naive begins diverging on out-of-sample data</td>
+            </tr>
+            <tr>
+              <td class="font-code">d = 5</td>
+              <td class="font-code">6.737 °C</td>
+              <td class="font-code">47.321 °C</td>
+              <td class="font-code">2.314 °C</td>
+              <td class="font-code">3.270 °C</td>
+              <td class="font-code">0.774</td>
+              <td>Seasonal captures subtle asymmetric shoulder seasons</td>
+            </tr>
+            <tr>
+              <td class="font-code">d = 6</td>
+              <td class="font-code">—</td>
+              <td class="font-code">—</td>
+              <td class="font-code">2.262 °C</td>
+              <td class="font-code">3.132 °C</td>
+              <td class="font-code">0.793</td>
+              <td>Approaching optimal generalization plateau</td>
+            </tr>
+            <tr class="highlight-optimal">
+              <td class="font-code">d = 8</td>
+              <td class="font-code">6.503 °C (d=7)</td>
+              <td class="font-code">52.019 °C</td>
+              <td class="font-code">2.133 °C</td>
+              <td class="font-code">3.097 °C</td>
+              <td class="font-code">0.797</td>
+              <td><span class="badge badge-emerald">Optimal Model</span> Best bias-variance tradeoff & test R² (0.794)</td>
+            </tr>
+            <tr>
+              <td class="font-code">d = 10</td>
+              <td class="font-code">4.510 °C (d=9)</td>
+              <td class="font-code">704.45 °C</td>
+              <td class="font-code">2.074 °C</td>
+              <td class="font-code">3.067 °C</td>
+              <td class="font-code">0.801</td>
+              <td>Marginal gain on seasonal; naive explodes to 704 °C</td>
+            </tr>
+            <tr>
+              <td class="font-code">d = 15</td>
+              <td class="font-code">2.688 °C</td>
+              <td class="font-code">3,623.15 °C</td>
+              <td class="font-code">2.015 °C</td>
+              <td class="font-code">3.082 °C</td>
+              <td class="font-code">0.799</td>
+              <td>Severe Runge oscillations on naive interval ends</td>
+            </tr>
+            <tr class="highlight-danger">
+              <td class="font-code">d = 20</td>
+              <td class="font-code">2.568 °C</td>
+              <td class="font-code">26,508.31 °C</td>
+              <td class="font-code">—</td>
+              <td class="font-code">—</td>
+              <td class="font-code">—</td>
+              <td><span class="badge badge-rose">Catastrophic Overfit</span> Runge's phenomenon explosion (26,508 °C error)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3: DATE PREDICTOR & SCENARIO EXPLORER -->
+  <section class="section" id="predictor">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Practical Inference</span>
+        <h2 class="section-title">Date Predictor & Forecast Simulator</h2>
+        <p class="section-desc">
+          Select any date to evaluate the combined predictive model: ŷ(date) = f_seasonal(day_of_year) + (g_trend(year) - ȳ). Observe the physical component breakdown and confidence intervals.
+        </p>
+      </div>
+
+      <div class="predictor-grid">
+        <!-- Input & Readout Card -->
+        <div class="predictor-input-card">
+          <div class="form-group">
+            <label class="form-label" for="datePickerInput">Target Calendar Date</label>
+            <input type="date" id="datePickerInput" class="input-date" value="2017-06-15" min="2013-01-01" max="2028-12-31" onchange="computeTargetPrediction()">
+          </div>
+
+          <!-- Digital Readout -->
+          <div class="thermal-readout">
+            <span class="thermal-degrees" id="readout-temp">34.8 °C</span>
+            <span class="thermal-status" id="readout-status">Scorching Pre-Monsoon Heatwave</span>
+            <span class="thermal-interval" id="readout-interval">Expected 95% Band: 31.9 °C to 37.7 °C</span>
+          </div>
+
+          <!-- Quick Climate Scenarios -->
+          <div>
+            <div class="form-label" style="margin-bottom:8px;">Benchmark Climate Scenarios</div>
+            <div class="scenario-button-grid">
+              <button class="btn-scenario" onclick="applyScenarioPreset('2017-01-10', 'Winter Fog Morning')">❄️ Jan 10 (Winter Minimum)</button>
+              <button class="btn-scenario" onclick="applyScenarioPreset('2017-05-28', 'Peak Heatwave')">☀️ May 28 (Extreme Heatwave)</button>
+              <button class="btn-scenario" onclick="applyScenarioPreset('2017-08-15', 'Monsoon Season')">🌧️ Aug 15 (Monsoon Humid)</button>
+              <button class="btn-scenario" onclick="applyScenarioPreset('2017-10-25', 'Post-Monsoon Autumn')">🍂 Oct 25 (Mild Autumn)</button>
+              <button class="btn-scenario" onclick="applyScenarioPreset('2024-06-05', '2024 Extrapolation')">🚀 2024 (Extrapolated)</button>
+              <button class="btn-scenario" onclick="applyScenarioPreset('2026-09-28', 'Current Date Equivalent')">📅 Today (Current Season)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Decomposition & Trajectory Card -->
+        <div class="predictor-results-card">
+          <div class="decomposition-list">
+            <div class="decomp-item">
+              <div class="decomp-info">
+                <h5>1. Historical Delhi Baseline (ȳ)</h5>
+                <span>Mean temperature across all training years (2013–2016)</span>
+              </div>
+              <div class="decomp-val" id="decomp-baseline">25.51 °C</div>
+            </div>
+
+            <div class="decomp-item">
+              <div class="decomp-info">
+                <h5>2. Seasonal Model Component: f_seasonal(doy)</h5>
+                <span id="decomp-doy-label">Day of Year: Day 166 of 365</span>
+              </div>
+              <div class="decomp-val" id="decomp-seasonal">+8.62 °C</div>
+            </div>
+
+            <div class="decomp-item">
+              <div class="decomp-info">
+                <h5>3. Long-Term Trend Drift: g_trend(year) - ȳ</h5>
+                <span id="decomp-trend-label">Year 2017 (+0.704 °C/year warming rate)</span>
+              </div>
+              <div class="decomp-val" id="decomp-trend">+0.68 °C</div>
+            </div>
+
+            <div class="decomp-item" style="border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.06);">
+              <div class="decomp-info">
+                <h5 style="color:var(--accent-blue);">Total Predicted Mean Temperature (ŷ)</h5>
+                <span>Base + Seasonal Offset + Trend Drift</span>
+              </div>
+              <div class="decomp-val" id="decomp-total" style="font-size:1.45rem; color:#fff;">34.81 °C</div>
+            </div>
+          </div>
+
+          <!-- Forecast Trajectory Chart -->
+          <div>
+            <h4 style="font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin-bottom:10px;">
+              Continuous Forecast Curve (2017–2018) & Extrapolation Horizon
+            </h4>
+            <div class="canvas-wrapper" style="height:250px;">
+              <canvas id="predictorForecastCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 4: CLIMATOLOGY & EDA -->
+  <section class="section" id="climatology">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Domain Context</span>
+        <h2 class="section-title">Exploratory Data Analysis & Climatology</h2>
+        <p class="section-desc">
+          Examining the thermal distributions and dataset integrity of the Delhi weather station records.
+        </p>
+      </div>
+
+      <div class="eda-grid-layout">
+        <!-- Monthly Profile Bars -->
+        <div class="eda-box">
+          <h4 style="font-size:0.95rem; font-weight:700; color:var(--text-primary);">Delhi Monthly Temperature Climatology (2013–2016)</h4>
+          <p style="font-size:0.84rem; color:var(--text-secondary);">
+            Delhi exhibits an extreme semi-arid continental seasonal profile with a ~22°C gap between winter lows and summer heatwave peaks.
+          </p>
+          <div class="climatology-bars" id="climatology-bars-container">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Trend Line & Quality Callout -->
+        <div class="eda-box">
+          <div class="notice-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <div>
+              <h5>Data Quality & Sensor Anomalies</h5>
+              <p>
+                In the raw training file, <code>meanpressure</code> contains corrupt sensor spikes (-3.04 hPa and 7,679 hPa). Fortunately, <code>meantemp</code> has 0 missing values and verified physical integrity.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h4 style="font-size:0.88rem; font-weight:600; color:var(--text-primary); margin-bottom:8px;">Year-over-Year Annual Means with Linear Trend (+0.704 °C/yr)</h4>
+            <div class="canvas-wrapper" style="height:230px;">
+              <canvas id="edaTrendCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 5: METHODOLOGY & CODE -->
+  <section class="section" id="methodology">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Mathematics & Code</span>
+        <h2 class="section-title">Methodology & Implementation</h2>
+        <p class="section-desc">
+          Mathematical formulation of polynomial regression, the normal equations, and production-ready Python scikit-learn code.
+        </p>
+      </div>
+
+      <div class="code-spec-grid">
+        <!-- Math Formulations -->
+        <div class="math-panel">
+          <div class="math-item">
+            <div class="math-item-title">1. Polynomial Projection</div>
+            <div class="math-formula">
+              X = [ 1,  x,  x²,  x³,  ...,  xᵈ ]
+            </div>
+            <p class="math-item-desc">
+              Transforms scalar day input into a (d+1)-dimensional non-linear feature space via the Vandermonde matrix.
+            </p>
+          </div>
+
+          <div class="math-item">
+            <div class="math-item-title">2. Ordinary Least Squares (OLS) Solution</div>
+            <div class="math-formula">
+              c* = (Xᵀ X)⁻¹ Xᵀ y
+            </div>
+            <p class="math-item-desc">
+              Minimizes sum of squared errors ∑(yᵢ - ŷᵢ)². When x is raw elapsed days (up to 1,460), the matrix condition number cond(XᵀX) explodes, causing extreme numerical instability. Day of year (1..366) keeps features well-conditioned.
+            </p>
+          </div>
+
+          <div class="math-item">
+            <div class="math-item-title">3. Combined Forecasting Model</div>
+            <div class="math-formula">
+              ŷ(date) = P₈(day_of_year) + (m · year + b) - ȳ
+            </div>
+            <p class="math-item-desc">
+              Decomposes thermal prediction into an 8th-degree seasonal oscillation plus a linear year-over-year climate drift.
+            </p>
+          </div>
+        </div>
+
+        <!-- Python Code Snippet -->
+        <div class="code-wrapper">
+          <div class="code-topbar">
+            <span class="code-filename">temperature_model.py</span>
+            <button class="btn-code-copy" onclick="copyPythonCode()">Copy Snippet</button>
+          </div>
+          <pre class="code-content">
+<span class="token-cm"># Polynomial Curve Fitting on Delhi Climate Data</span>
+<span class="token-kw">import</span> numpy <span class="token-kw">as</span> np
+<span class="token-kw">import</span> pandas <span class="token-kw">as</span> pd
+<span class="token-kw">from</span> sklearn.metrics <span class="token-kw">import</span> mean_squared_error, r2_score
+
+<span class="token-cm"># 1. Load dataset & remove overlapping boundary date</span>
+train = pd.<span class="token-fn">read_csv</span>(<span class="token-str">'DailyDelhiClimateTrain.csv'</span>, parse_dates=[<span class="token-str">'date'</span>])
+test  = pd.<span class="token-fn">read_csv</span>(<span class="token-str">'DailyDelhiClimateTest.csv'</span>,  parse_dates=[<span class="token-str">'date'</span>])
+train = train[~train[<span class="token-str">'date'</span>].<span class="token-fn">isin</span>(test[<span class="token-str">'date'</span>])].<span class="token-fn">reset_index</span>(drop=<span class="token-kw">True</span>)
+
+<span class="token-cm"># 2. Key feature engineering: day of year</span>
+train[<span class="token-str">'day_of_year'</span>] = train[<span class="token-str">'date'</span>].dt.dayofyear
+test[<span class="token-str">'day_of_year'</span>]  = test[<span class="token-str">'date'</span>].dt.dayofyear
+
+<span class="token-cm"># 3. Fit optimal degree-8 seasonal polynomial</span>
+coefs = np.<span class="token-fn">polyfit</span>(train[<span class="token-str">'day_of_year'</span>], train[<span class="token-str">'meantemp'</span>], deg=<span class="token-num">8</span>)
+poly  = np.<span class="token-fn">poly1d</span>(coefs)
+
+<span class="token-cm"># 4. Evaluate on held-out 2017 test set</span>
+y_pred = poly(test[<span class="token-str">'day_of_year'</span>])
+rmse   = np.<span class="token-fn">sqrt</span>(<span class="token-fn">mean_squared_error</span>(test[<span class="token-str">'meantemp'</span>], y_pred))
+r2     = <span class="token-fn">r2_score</span>(test[<span class="token-str">'meantemp'</span>], y_pred)
+
+<span class="token-fn">print</span>(<span class="token-str">f"Held-out 2017 Test RMSE : {rmse:.3f} °C"</span>)
+<span class="token-fn">print</span>(<span class="token-str">f"Held-out 2017 Test R²   : {r2:.3f}"</span>)
+<span class="token-cm"># Result: RMSE = 2.873 °C, R² = 0.794</span>
+          </pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer container">
+    <div>
+      <strong>Polynomial Curve Fitting ML Project</strong> • Delhi Daily Climate Time Series (2013–2017)
+    </div>
+    <div class="footer-links">
+      <a href="#workbench" class="footer-link">Workbench</a>
+      <a href="#benchmarks" class="footer-link">Benchmarks</a>
+      <a href="#predictor" class="footer-link">Predictor</a>
+      <a href="#methodology" class="footer-link">Code</a>
+      <button class="nav-btn" onclick="window.print()" style="padding:4px 10px; font-size:0.75rem;">Print / PDF</button>
+    </div>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
